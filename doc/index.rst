@@ -409,8 +409,8 @@ Special typing primitives
    raises a :py:exc:`DeprecationWarning` when this syntax is used in Python 3.12
    or lower and fails with a :py:exc:`TypeError` in Python 3.13 and higher.
 
-   ``typing_extensions`` supports the experimental :data:`ReadOnly` qualifier
-   proposed by :pep:`705`. It is reflected in the following attributes:
+   ``typing_extensions`` supports the :data:`ReadOnly` qualifier
+   introduced by :pep:`705`. It is reflected in the following attributes:
 
    .. attribute:: __readonly_keys__
 
@@ -705,6 +705,17 @@ Decorators
       Inheriting from a deprecated class now also raises a runtime
       :py:exc:`DeprecationWarning`.
 
+.. decorator:: disjoint_base
+
+   See :pep:`800`. A class decorator that marks a class as a "disjoint base", meaning that
+   child classes of the decorated class cannot inherit from other disjoint bases that are not
+   parent classes of the decorated class.
+
+   This helps type checkers to detect unreachable code and to understand when two types
+   can overlap.
+
+   .. versionadded:: 4.15.0
+
 .. decorator:: final
 
    See :py:func:`typing.final` and :pep:`591`. In ``typing`` since 3.8.
@@ -932,6 +943,15 @@ Functions
    See :py:func:`typing.reveal_type`. In ``typing`` since 3.11.
 
    .. versionadded:: 4.1.0
+
+.. function:: type_repr(value)
+
+   See :py:func:`annotationlib.type_repr`. In ``annotationlib`` since 3.14.
+
+   Convert an arbitrary Python value to a format suitable for use by
+   the :attr:`Format.STRING`.
+
+   .. versionadded:: 4.15.0
 
 Enums
 ~~~~~

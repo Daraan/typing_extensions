@@ -84,6 +84,7 @@ from typing_extensions import (
     clear_overloads,
     dataclass_transform,
     deprecated,
+    disjoint_base,
     evaluate_forward_ref,
     final,
     get_annotations,
@@ -101,6 +102,7 @@ from typing_extensions import (
     reveal_type,
     runtime,
     runtime_checkable,
+    type_repr,
 )
 
 NoneType = type(None)
@@ -1207,13 +1209,15 @@ class LiteralTests(BaseTestCase):
 
         self.assertEqual(Literal[My.A].__args__, (My.A,))
 
-    def test_illegal_parameters_do_not_raise_runtime_errors(self):
+    def test_strange_parameters_are_allowed(self):
+        # These are explicitly allowed by the typing spec
+        Literal[Literal[1, 2], Literal[4, 5]]
+        Literal[b"foo", "bar"]
+
         # Type checkers should reject these types, but we do not
         # raise errors at runtime to maintain maximum flexibility
         Literal[int]
-        Literal[Literal[1, 2], Literal[4, 5]]
         Literal[3j + 2, ..., ()]
-        Literal[b"foo", "bar"]
         Literal[{"foo": 3, "bar": 4}]
         Literal[T]
 
@@ -6667,6 +6671,18 @@ class FinalDecoratorTests(BaseTestCase):
         self.assertIs(True, Methods.cached.__final__)
 
 
+class DisjointBaseTests(BaseTestCase):
+    def test_disjoint_base_unmodified(self):
+        class C: ...
+        self.assertIs(C, disjoint_base(C))
+
+    def test_dunder_disjoint_base(self):
+        @disjoint_base
+        class C: ...
+
+        self.assertIs(C.__disjoint_base__, True)
+
+
 class RevealTypeTests(BaseTestCase):
     def test_reveal_type(self):
         obj = object()
@@ -8366,6 +8382,44 @@ class CapsuleTypeTests(BaseTestCase):
         self.assertIsInstance(_datetime.datetime_CAPI, typing_extensions.CapsuleType)
 
 
+class MyClass:
+    def __repr__(self):
+        return "my repr"
+
+
+class TestTypeRepr(BaseTestCase):
+    def test_custom_types(self):
+
+        class Nested:
+            pass
+
+        def nested():
+            pass
+
+        self.assertEqual(type_repr(MyClass), f"{__name__}.MyClass")
+        self.assertEqual(
+            type_repr(Nested),
+            f"{__name__}.TestTypeRepr.test_custom_types.<locals>.Nested",
+        )
+        self.assertEqual(
+            type_repr(nested),
+            f"{__name__}.TestTypeRepr.test_custom_types.<locals>.nested",
+        )
+        self.assertEqual(type_repr(times_three), f"{__name__}.times_three")
+        self.assertEqual(type_repr(Format.VALUE), repr(Format.VALUE))
+        self.assertEqual(type_repr(MyClass()), "my repr")
+
+    def test_builtin_types(self):
+        self.assertEqual(type_repr(int), "int")
+        self.assertEqual(type_repr(object), "object")
+        self.assertEqual(type_repr(None), "None")
+        self.assertEqual(type_repr(len), "len")
+        self.assertEqual(type_repr(1), "1")
+        self.assertEqual(type_repr("1"), "'1'")
+        self.assertEqual(type_repr(''), "''")
+        self.assertEqual(type_repr(...), "...")
+
+
 def times_three(fn):
     @functools.wraps(fn)
     def wrapper(a, b):
@@ -9153,10 +9207,9 @@ class EvaluateForwardRefTests(BaseTestCase):
         not_Tx = TypeVar("Tx")  # different TypeVar with same name
         self.assertIs(evaluate_forward_ref(typing.ForwardRef("Tx"), type_params=(not_Tx,), owner=Gen), not_Tx)
 
-        # globals can take higher precedence
-        if _FORWARD_REF_HAS_CLASS:
-            self.assertIs(evaluate_forward_ref(typing.ForwardRef("Tx", is_class=True), owner=Gen, globals={"Tx": str}), str)
-            self.assertIs(evaluate_forward_ref(typing.ForwardRef("Tx", is_class=True), owner=Gen, type_params=(not_Tx,), globals={"Tx": str}), str)
+        # globals do not take higher precedence
+        self.assertIs(evaluate_forward_ref(typing.ForwardRef("Tx", is_class=True), owner=Gen, globals={"Tx": str}), Tx)
+        self.assertIs(evaluate_forward_ref(typing.ForwardRef("Tx", is_class=True), owner=Gen, type_params=(not_Tx,), globals={"Tx": str}), not_Tx)
 
         with self.assertRaises(NameError):
             evaluate_forward_ref(typing.ForwardRef("alias"), type_params=Gen.__type_params__)
